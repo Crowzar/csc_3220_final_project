@@ -6,8 +6,12 @@ data <- read.csv("csc_3220_final_project/Smartphone_Usage_And_Addiction_Analysis
 
 colSums(is.na(data))
 
-get_dupes(data)
+data2 <- data |> filter(if_all(-addicted_label, ~ !is.na(.) & trimws(as.character(.)) != ""))
 
-identify_outliers(data)
+colSums(is.na(data2))
 
-summary(data)
+get_dupes(data2)
+
+summary(data2)
+
+nrow(data2)
