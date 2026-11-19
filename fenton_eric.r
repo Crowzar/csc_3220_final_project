@@ -1,16 +1,13 @@
 library(tidyverse)
 library(tidymodels)
-set.seed(3220)
 
-# Load dataset, addicted_label is factor with "1" as first event level
-# Rows with missing addicted_label are held out separately for final inference,
-# because Recall and Precision require ground-truth labels to compute.
+set.seed(3220) # Shared Team seed for reproducible 80/20 split
+
+# Load and prepare data
 df_labeled <- read_csv("Smartphone_Usage_And_Addiction_Analysis.csv") %>%
-  # Remove identifier columns (user_id) that carry no predictive signal, AND remove
-  # 'addiction_level' ("None", "Mild", "Moderate", "Severe") to prevent data leakage,
-  # since addiction_level directly encodes the binary target variable.
+  # Drop IDs and 'addiction_level' to prevent leakage
   select(-any_of(c("user_id", "addiction_level"))) %>%
-  # Ensure binary target is stored as an integer (1 = positive class, 0 = negative class)
+  # Set "1" as first factor level so yardstick treats it as the positive event
   mutate(addicted_label = factor(addicted_label, levels = c("1", "0")))
 
 # 80/20 Train/Test Split
@@ -20,8 +17,10 @@ test_data <- testing(data_split)
 
 # Preprocessing recipe
 logreg_recipe <- recipe(addicted_label ~ ., data = train_data) %>%
-  step_dummy(all_nominal_predictors()) %>%
-  step_normalize(all_numeric_predictors())
+  step_novel(all_nominal_predictors()) %>% # Handle unseen test factor levels
+  step_dummy(all_nominal_predictors()) %>% # Encode categoricals
+  step_zv(all_predictors()) %>% # Drop zero variance cols
+  step_normalize(all_numeric_predictors()) # standardize numeric features (mean 0, sd 1)
 
 # Logreg workflow
 logreg_spec <- logistic_reg() %>%
@@ -32,7 +31,7 @@ logreg_wf <- workflow() %>%
   add_recipe(logreg_recipe) %>%
   add_model(logreg_spec)
 
-# Fit Model
+# Fit Model 
 logreg_fit <- fit(logreg_wf, data = train_data)
 
 # Eval default (0.50 Thresh) Metrics on Test Set
@@ -41,6 +40,9 @@ test_preds <- augment(logreg_fit, new_data = test_data)
 baseline_metrics <- metric_set(accuracy, recall, precision, f_meas)
 baseline_metrics(test_preds, truth = addicted_label, estimate = .pred_class)
 roc_auc(test_preds, truth = addicted_label, .pred_1)
+
+# Inspect coefficients for feature interpretation
+tidy(logreg_fit, exponentiate = TRUE)
 
 
 # Sweep prob cutoff to find threshold hitting 90-95 Recall
