@@ -5,7 +5,7 @@ library(LiblineaR)
 
 data <- read.csv("csc_3220_final_project/Smartphone_Usage_And_Addiction_Analysis.csv", header = TRUE, na.strings = c("", " ", "NA"))
 
-colSums(is.na(data)) #This is to check for any NA's in the data
+colSums(is.na(data)) # This is to check for any NA's in the data
 
 # The following line will no longer be used for the data set due to the teacher telling us that dropping this amount of our data would not be a good idea, and to instead impute the data using mean or most common category
 # data2 <- data |> filter(if_all(-addicted_label, ~ !is.na(.) & trimws(as.character(.)) != "")) This will help clean the data to remove NA's and empty spaces, excluding the Addicted label column since the data was split already when we got it from the competition
@@ -34,9 +34,9 @@ data2 <- data |>
     )
   )
 
-colSums(is.na(data2)) #This is to verify the NA's were removed
+colSums(is.na(data2)) # This is to verify the NA's were removed
 
-data2 |> select(-id) |> get_dupes() #This will use the janitor package to check for any duplicate data (excluding unique row id)
+data2 |> select(-id) |> get_dupes() # This will use the janitor package to check for any duplicate data (excluding unique row id)
 
 summary(data2)
 
@@ -45,6 +45,7 @@ nrow(data2)
 # This is where building and training the SVM model will begin
 
 # Separate labeled rows (for training/evaluation) from unlabeled competition rows (for prediction)
+# unlabeled_data will be used for testing and the model_data with labels will be used to train the data
 model_data <- data2 |>
   filter(!is.na(addicted_label)) |>
   mutate(addicted_label = factor(addicted_label, levels = c(1, 0)))
@@ -55,13 +56,12 @@ unlabeled_data <- data2 |>
 
 set.seed(450000)
 
-#commenting out the following data since I changed stategy to use the already split data
-#unlabeled_data will be used for testing and the model_data with labels will be used to train the data
+# commenting out the following data since I changed stategy to use the already split data
 # data_split <- initial_split(model_data, prop = 0.75, strata = addicted_label)
-#started with prop at 0.75 and got an accuracy of 0.835
-#next tried prop at 0.8 and the accuracy only increased to 0.836
-#a prop of 0.6 produced an accuracy of 0.835 as well.
-#tried a prop of 0.9 and the accuracy went to 0.839
+# started with prop at 0.75 and got an accuracy of 0.835
+# next tried prop at 0.8 and the accuracy only increased to 0.836
+# a prop of 0.6 produced an accuracy of 0.835 as well.
+# tried a prop of 0.9 and the accuracy went to 0.839
 
 train_data <- model_data
 
@@ -89,7 +89,7 @@ head(test_preds |> select(id, .pred_class))
 set.seed(450000)
 
 folds <- vfold_cv(train_data, v = 5, strata = addicted_label)
-#10 folds is taking a long time with the amount of data, tried 5 folds next
+# 10 folds is taking a long time with the amount of data, tried 5 folds next
 
 svm_cv <- fit_resamples(
   svm_wf,
@@ -112,4 +112,4 @@ svm_conf_mat <- collect_predictions(svm_cv) |>
 
 svm_conf_mat
 
-autoplot(svm_conf_mat, type = "heatmap")
+autoplot(svm_conf_mat, type = "heatmap") # This will produce a graphic of the confusion matrix
