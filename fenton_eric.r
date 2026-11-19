@@ -6,7 +6,8 @@ set.seed(3220) # Shared Team seed for reproducible 80/20 split
 # Load and prepare data
 df_labeled <- read_csv("Smartphone_Usage_And_Addiction_Analysis.csv") %>%
   # Drop IDs and 'addiction_level' to prevent leakage
-  select(-any_of(c("user_id", "addiction_level"))) %>%
+  select(-any_of(c("id", "user_id", "addiction_level"))) %>%
+  drop_na() %>% # Ensure no NA predictors or NA addicted_label rows remain
   # Set "1" as first factor level so yardstick treats it as the positive event
   mutate(addicted_label = factor(addicted_label, levels = c("1", "0")))
 
@@ -48,6 +49,7 @@ tidy(logreg_fit, exponentiate = TRUE)
 # Sweep prob cutoff to find threshold hitting 90-95 Recall
 thresholds <- seq(0.10, 0.50, by = 0.05)
 
+# summary of data to check and be sure
 threshold_results <- map_dfr(thresholds, function(thresh) {
   test_preds %>%
     mutate(pred_custom = factor(if_else(.pred_1 >= thresh, "1", "0"), levels = c("1", "0"))) %>%
@@ -60,4 +62,21 @@ threshold_results <- map_dfr(thresholds, function(thresh) {
     )
 })
 
-print(threshold_results)
+# Plot 1: Threshold vs Metric 
+threshold_long <- threshold_results %>%
+  pivot_longer(cols = c(recall, precision, f1), names_to = "metric", values_to = "score")
+
+ggplot(threshold_long, aes(x = threshold, y = score, color = metric)) +
+  geom_rect(aes(xmin = 0.35, xmax = 0.50, ymin = -Inf, ymax= Inf),
+            fill = "lightgreen", alpha = 0.03, inherit.aes = FALSE) +
+  geom_line(linewidth = 1.1) +
+  geom_point(size = 2.5) +
+  geom_hline(yintercept = c(0.90, 0.95), linetype = "dashed", color = "darkgreen") +
+  labs(
+    title = "Baseline Logistic Regression: Classification Metrics Across Thresholds",
+    subtitle = "Shaded region (0.35-0.50) achieves the 90-95% Recall",
+    x = "Classification Probability Threshold",
+    y = "Metric Score",
+    color = "Metric"
+  ) +
+  theme_minimal()
