@@ -44,20 +44,28 @@ nrow(data2)
 
 # This is where building and training the SVM model will begin
 
-# Keep only labeled rows for training/evaluation and convert outcome to a factor
+# Separate labeled rows (for training/evaluation) from unlabeled competition rows (for prediction)
 model_data <- data2 |>
   filter(!is.na(addicted_label)) |>
   mutate(addicted_label = factor(addicted_label, levels = c(1, 0)))
 
-set.seed(42)
+unlabeled_data <- data2 |>
+  filter(is.na(addicted_label)) |>
+  select(-addicted_label)
 
-data_split <- initial_split(model_data, prop = 0.60, strata = addicted_label)
+set.seed(450000)
+
+#commenting out the following data since I changed stategy to use the already split data
+#unlabeled_data will be used for testing and the model_data with labels will be used to train the data
+# data_split <- initial_split(model_data, prop = 0.75, strata = addicted_label)
 #started with prop at 0.75 and got an accuracy of 0.835
 #next tried prop at 0.8 and the accuracy only increased to 0.836
+#a prop of 0.6 produced an accuracy of 0.835 as well.
+#tried a prop of 0.9 and the accuracy went to 0.839
 
-train_data <- training(data_split)
+train_data <- model_data
 
-test_data <- testing(data_split)
+test_data <- unlabeled_data
 
 # Linear SVM preprocessing recipe
 svm_recipe <- recipe(addicted_label ~ ., data = train_data) |>
@@ -72,18 +80,36 @@ svm_wf <- workflow() |> add_recipe(svm_recipe) |> add_model(svm_spec)
 
 svm_fit <- fit(svm_wf, data = train_data)
 
+# Predict addicted_label on the unlabeled test rows
 test_preds <- augment(svm_fit, new_data = test_data)
 
-accuracy(test_preds, truth = addicted_label, estimate = .pred_class)
+# Preview the first 6 predicted classes alongside each row's ID to verify predictions generated properly
+head(test_preds |> select(id, .pred_class))
 
-set.seed(42)
+set.seed(450000)
+
 folds <- vfold_cv(train_data, v = 5, strata = addicted_label)
 #10 folds is taking a long time with the amount of data, tried 5 folds next
 
 svm_cv <- fit_resamples(
   svm_wf,
   resamples = folds,
-  metrics = metric_set(accuracy, f_meas, bal_accuracy, sens, spec)
+  # Evaluation metrics (positive class = 1 / addicted):
+  #   accuracy     - Overall proportion of correct predictions
+  #   f_meas       - F1-score: harmonic mean of precision and recall for class 1 (balances false positives & false negatives)
+  #   bal_accuracy - Balanced accuracy: average of sensitivity and specificity (accounts for class imbalance)
+  #   sens         - Sensitivity (recall): proportion of actual addicted users (1) correctly predicted as addicted
+  #   spec         - Specificity: proportion of actual non-addicted users (0) correctly predicted as not addicted
+  metrics = metric_set(accuracy, f_meas, bal_accuracy, sens, spec),
+  control = control_resamples(save_pred = TRUE)
 )
 
 collect_metrics(svm_cv)
+
+# Out-of-fold confusion matrix from 5-fold cross-validation
+svm_conf_mat <- collect_predictions(svm_cv) |>
+  conf_mat(truth = addicted_label, estimate = .pred_class)
+
+svm_conf_mat
+
+autoplot(svm_conf_mat, type = "heatmap")
