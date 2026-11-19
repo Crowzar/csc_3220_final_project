@@ -54,7 +54,7 @@ unlabeled_data <- data2 |>
   filter(is.na(addicted_label)) |>
   select(-addicted_label)
 
-set.seed(450000)
+set.seed(3220)
 
 # commenting out the following data since I changed stategy to use the already split data
 # data_split <- initial_split(model_data, prop = 0.75, strata = addicted_label)
@@ -86,7 +86,7 @@ test_preds <- augment(svm_fit, new_data = test_data)
 # Preview the first 6 predicted classes alongside each row's ID to verify predictions generated properly
 head(test_preds |> select(id, .pred_class))
 
-set.seed(450000)
+set.seed(3220)
 
 folds <- vfold_cv(train_data, v = 5, strata = addicted_label)
 # 10 folds is taking a long time with the amount of data, tried 5 folds next
