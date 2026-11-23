@@ -98,9 +98,11 @@ svm_cv <- fit_resamples(
   #   accuracy     - Overall proportion of correct predictions
   #   f_meas       - F1-score: harmonic mean of precision and recall for class 1 (balances false positives & false negatives)
   #   bal_accuracy - Balanced accuracy: average of sensitivity and specificity (accounts for class imbalance)
+  #   precision    - Precision: proportion of predicted addicted users (1) who are actually addicted
+  #   recall       - Recall (sensitivity): proportion of actual addicted users (1) correctly predicted as addicted
   #   sens         - Sensitivity (recall): proportion of actual addicted users (1) correctly predicted as addicted
   #   spec         - Specificity: proportion of actual non-addicted users (0) correctly predicted as not addicted
-  metrics = metric_set(accuracy, f_meas, bal_accuracy, sens, spec),
+  metrics = metric_set(accuracy, f_meas, bal_accuracy, precision, recall, sens, spec),
   control = control_resamples(save_pred = TRUE)
 )
 
