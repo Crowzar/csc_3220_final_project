@@ -96,17 +96,65 @@ svm_cv <- fit_resamples(
   resamples = folds,
   # Evaluation metrics (positive class = 1 / addicted):
   #   accuracy     - Overall proportion of correct predictions
-  #   f_meas       - F1-score: harmonic mean of precision and recall for class 1 (balances false positives & false negatives)
-  #   bal_accuracy - Balanced accuracy: average of sensitivity and specificity (accounts for class imbalance)
   #   precision    - Precision: proportion of predicted addicted users (1) who are actually addicted
   #   recall       - Recall (sensitivity): proportion of actual addicted users (1) correctly predicted as addicted
-  #   sens         - Sensitivity (recall): proportion of actual addicted users (1) correctly predicted as addicted
   #   spec         - Specificity: proportion of actual non-addicted users (0) correctly predicted as not addicted
-  metrics = metric_set(accuracy, f_meas, bal_accuracy, precision, recall, sens, spec),
+  metrics = metric_set(accuracy, precision, recall, spec),
   control = control_resamples(save_pred = TRUE)
 )
 
 collect_metrics(svm_cv)
+
+# Feature correlations with addicted_label and with each other
+# Uses the baked recipe features (numeric + dummy-encoded categoricals) and converts
+# addicted_label back to 1 (addicted) / 0 (not addicted) so positive correlation = more addicted
+cor_data <- svm_recipe |>
+  prep() |>
+  bake(new_data = NULL) |>
+  mutate(addicted_label = as.numeric(as.character(addicted_label)))
+
+cor_matrix <- cor(cor_data, use = "pairwise.complete.obs")
+
+# Ranked correlations of each feature with being addicted (addicted_label)
+addicted_cor <- tibble(
+  feature = colnames(cor_matrix),
+  correlation = cor_matrix[, "addicted_label"]
+) |>
+  filter(feature != "addicted_label") |>
+  arrange(desc(abs(correlation)))
+
+addicted_cor
+
+# Full correlation matrix (features with addicted_label and with each other)
+round(cor_matrix, 3)
+
+# Correlation heatmap of all features and addicted_label
+cor_matrix |>
+  as.data.frame() |>
+  rownames_to_column("feature_1") |>
+  pivot_longer(-feature_1, names_to = "feature_2", values_to = "correlation") |>
+  mutate(
+    feature_1 = factor(feature_1, levels = colnames(cor_matrix)),
+    feature_2 = factor(feature_2, levels = rev(colnames(cor_matrix)))
+  ) |>
+  ggplot(aes(x = feature_1, y = feature_2, fill = correlation)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = sprintf("%.2f", correlation)), size = 2.8) +
+  scale_fill_gradient2(
+    low = "#2166AC",
+    mid = "white",
+    high = "#B2182B",
+    midpoint = 0,
+    limits = c(-1, 1)
+  ) +
+  labs(
+    title = "Feature Correlation Matrix (Including Addicted Label)",
+    x = NULL,
+    y = NULL,
+    fill = "Correlation"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 # Out-of-fold confusion matrix from 5-fold cross-validation
 svm_conf_mat <- collect_predictions(svm_cv) |>
